@@ -1,0 +1,74 @@
+Survey Area
+	Given a polygonal survey area for the drone to traverse and a set obstacles with known positions and radius (obstacles are circles), generate a traversal path of the survey area without running into obstacles).
+
+Algorithm:
+	- Identify BEGIN, END, IN, OUT, and MIDDLE events and sort them
+		according to their x-coordinates.
+	- Instantiate polygonal obstacles and survey area
+	- iterate through events (event line scanning from left to right):
+		- BEGIN event: create a new cell
+		- END event: end all cells that is still opened
+		- IN event: 
+			terminate the cell in contact with the event line
+			(old cell) and start two or more new cells that 
+			the old cell is split into.
+			
+		- OUT event:
+			terminate the cells in contact with the event line
+			(old cells) and start a new cell that the old cells
+			are combined into.
+
+		- MIDDLE event:
+			update the cell that is in contact with the event line.
+			Enqueue the new edge as the floor or roof edge of the
+			cell, which has the edge prior to the event as floor 
+			or root.
+
+Primitive Structures:
+	- Event:
+		BEGIN event: store next roof and floor edges following the event
+		END event: no need to store edges
+		IN event: store 
+		OUT event: store widest possible pair of edges after the event so
+			that we close all cells that have pairs of roof and floor
+			edges within them.
+
+		MIDDLE event:
+		Middle event can be further classified to CEILING and FLOOR events
+
+
+	* END event can be impl. as a special type of IN event. (and BEGIN as OUT) 
+	* events could be edges or points
+
+Primitive Operations:
+	Path generation for four-sided convex polygon:
+	- Given a pair of begin and end x-coordinates and a series of
+	floor and roof edges (gauranteed to be convex for now), generate
+	a path that traverses through the polygon completely.
+	
+	- Path generation is dependent on the height of the drone
+
+Implementation:
+	TODO:
+		- Limit scan line using "union", unioning with survey area 
+		(outer ring) and subtracting obstacles (inner rings).
+
+		- represent polygons in terms of vertices (point_2ds) and
+		edges (segment_2ds).
+
+		- Check for intersecting edges of polygons and obstacles with
+		the scan line.
+
+		- Generate events, which contain roof and floor edges to construct
+		new cells.
+
+		- Avoid duplicates in cell creation (e.g. multiple IN events that
+		have the same x-coordinates.)
+
+	Things to think about:
+		- Should SurveyArea and Obstacle classes be subclasses of polygon_2d?
+
+	Things to learn:
+		- inheritance
+		- C++ templates
+		- STL containers
