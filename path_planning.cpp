@@ -10,6 +10,8 @@
 #include <boost/geometry/geometries/multi_polygon.hpp>
 #include <boost/geometry/geometries/adapted/c_array.hpp>
 #include <boost/geometry/algorithms/assign.hpp>
+#include <boost/geometry/algorithms/intersection.hpp>
+#include "Event.hpp"
 #include "path_planning.hpp"
 
 using namespace std;
@@ -34,9 +36,14 @@ BoustrophedonCell::BoustrophedonCell(double leftEndPoint, segment_2d *startCeilS
 // IN: 2
 // OUT: 3
 // MIDDLE: 4
-void BoustrophedonCell::update(Event event) {
+void BoustrophedonCell::update(Event<point_2d> event) {
     //TODO: check if the current cell is involved in the event (i.e. in contact with the event line)
 }
+
+void BoustrophedonCell::update(Event<segment_2d> event) {
+    //TODO: check if the current cell is involved in the event (i.e. in contact with the event line)
+}
+
 
 
 std::vector<point_2d> gen_path(BoustrophedonCell cell) {
@@ -45,22 +52,23 @@ std::vector<point_2d> gen_path(BoustrophedonCell cell) {
     return generatedPath;
 }
 
-pair<coord_seq_t::iterator, coord_seq_t::iterator> minmax(coord_seq_t &seq, int dim = 0) {
-    coord_seq_t::iterator min_ele_iter = seq.begin();
-    coord_seq_t::iterator max_ele_iter = seq.begin();
+template <int D>
+pair<pt_iter_t, pt_iter_t> minmax(pt_seq_t &seq) {
+    pt_seq_t::iterator min_ele_iter = seq.begin();
+    pt_seq_t::iterator max_ele_iter = seq.begin();
 
-    for (coord_seq_t::iterator iter = seq.begin(); iter < seq.end(); ++iter) {
-        double xCoord = get<0>(*iter);
-        if (xCoord < get<0>(*min_ele_iter))
+    for (pt_seq_t::iterator iter = seq.begin(); iter < seq.end(); ++iter) {
+        double xCoord = get<D>(*iter);
+        if (xCoord < get<D>(*min_ele_iter))
             min_ele_iter = iter;
-        if (xCoord > get<0>(*max_ele_iter))
+        if (xCoord > get<D>(*max_ele_iter))
             max_ele_iter = iter;
     }
 
-    return pair<coord_seq_t::iterator, coord_seq_t::iterator>(min_ele_iter, max_ele_iter);
+    return pair<pt_iter_t, pt_iter_t>(min_ele_iter, max_ele_iter);
 }
 
-coord_seq_t leftCircularShift(coord_seq_t &poly) {
+pt_seq_t leftCircularShift(pt_seq_t &poly) {
 
     if (poly.size() < 3)
         throw invalid_argument("received a polygon with less than 3 vertices..");
@@ -68,9 +76,9 @@ coord_seq_t leftCircularShift(coord_seq_t &poly) {
     // the polygon is in the first position, followed by
     // vertices in counterclockwise traversal. Assume poly
     // is in counterclockwise traversal.
-    auto result = minmax(poly);
-    vec_iter leftShift = result.first;
-    vec_iter leftShiftCopy = leftShift;
+    pair<pt_iter_t, pt_iter_t> result = minmax<0>(poly);
+    pt_iter_t leftShift = result.first;
+    pt_iter_t leftShiftCopy = leftShift;
     if (leftShift == poly.begin()) {
         leftShift = (get<0>(*leftShift) == get<0>(*(poly.end()-1))) ? poly.end()-1 : leftShift;
     }
@@ -78,9 +86,9 @@ coord_seq_t leftCircularShift(coord_seq_t &poly) {
         leftShift = leftShiftCopy;
     }
     cout << "left shift from: " << get<0>(*leftShift) << ", " << get<1>(*leftShift) << endl;
-    coord_seq_t shifted_poly;
+    pt_seq_t shifted_poly;
     
-    vec_iter vtx_iter;
+    pt_iter_t vtx_iter;
     for (vtx_iter = leftShift; vtx_iter < poly.end(); vtx_iter++) {
         shifted_poly.push_back(*vtx_iter);
     }
@@ -91,36 +99,86 @@ coord_seq_t leftCircularShift(coord_seq_t &poly) {
     return shifted_poly;
 }
 
-void printVec(const vector<point_2d> &seq) {
+template <typename T>
+void printSeq(const vector<T> &seq) {
     // loop through coordinates
-    for (const point_2d &ele : seq) {
-        cout << get<0>(ele) << ", " << get<1>(ele) << endl;
+    for (typename vector<T>::const_iterator iter = seq.begin(); iter != seq.end(); ++iter) {
+        cout << dsv(*iter);
+    }
+
+    cout << "\n";
+}
+
+template<>
+void printSeq<intersect_t>(const vector<intersect_t> &seq) {
+    for (vector<intersect_t>::const_iterator iter = seq.begin(); iter != seq.end(); ++iter) {
+        cout << dsv((*iter).first) << ", " << dsv((*iter).second) << endl;
     }
 }
 
-SurveyArea::SurveyArea(double coords[][2], int num_of_pts) {
+Polygon::Polygon(double coords[][2], int num_of_pts) {
     // left circular shift so that the leftmost vertex is in the first position
     for (size_t i = 0; i < num_of_pts; ++i) {
         vertices.push_back(make<point_2d>(coords[i][0], coords[i][1]));
     }
 
-    cout << "received: " << vertices.size() << " vertices" << endl;
     vertices = leftCircularShift(vertices);
 
     // ending point is the starting point
-    vertices.push_back(make<point_2d>(coords[0][0], coords[0][1]));
-    
+    vertices.push_back(vertices[0]);
+
+    // create edges
+    for (pt_const_iter_t iter = vertices.begin(); iter != vertices.end()-1; ++iter) {
+        pt_const_iter_t nextPtIter = iter+1;
+        edges.push_back(segment_2d(*iter, *nextPtIter));
+    }
+
+    cout << "vertices: " << endl;
+    printSeq(vertices);
+    cout << "edges: " << endl;
+    printSeq(edges);
 
     // make a boost polygon representation from vertices
     assign_points<polygon_2d, vector<point_2d> >(poly, vertices);
 }
 
+intersect_seq_t Polygon::line_intersect(double xCoord) {
+    pair<pt_iter_t, pt_iter_t> result = minmax<1>(vertices);
+
+    // create vertical line that span the height of the polygon
+    segment_2d scanLine = segment_2d(
+        point_2d(xCoord, get<1>(*result.first)),
+        point_2d(xCoord, get<1>(*result.second)));
+    // cout << "scanLine: " << dsv(scanLine) << endl;
+
+    intersect_seq_t intersects;
+    for (edge_const_iter_t e_iter = edges.begin();e_iter != edges.end(); ++e_iter) {
+        vector<point_2d> output;
+        intersection(*e_iter, scanLine, output);
+
+        // cout << "output: " << endl;
+        // printSeq(output);
+
+        if (output.size() != 0)
+            intersects.push_back(intersect_t(output[0], *e_iter));
+    }
+
+    return intersects;
+}
+
+SurveyArea::SurveyArea(double coords[][2], int num_of_pts)
+    : Polygon(coords, num_of_pts) {}
 
 int main(void)
 {
     double coords[4][2] = { {0, 400}, {400, 400}, {400, 0}, {0, 0} };
     int num_of_pts = sizeof(coords)/sizeof(coords[0]);
     double (*coords_ptr)[2] = coords;
-    SurveyArea sa(coords_ptr, num_of_pts); 
+    SurveyArea sa(coords_ptr, num_of_pts);
+
+    intersect_seq_t intersects = sa.line_intersect(200);
+    cout << "intersects: " << endl;
+    printSeq(intersects);
+
     return 0;
 }

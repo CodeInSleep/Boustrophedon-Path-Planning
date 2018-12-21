@@ -1,70 +1,33 @@
 #ifndef _PATH_PLANNING_H
 #define _PATH_PLANNING_H
 
-using namespace boost::geometry;
-using namespace std;
+#include "header.hpp"
 
-typedef model::d2::point_xy<double> point_2d;
-typedef model::segment<point_2d> segment_2d;
-typedef model::polygon<point_2d, false> polygon_2d;
-typedef vector<point_2d> coord_seq_t;
-typedef coord_seq_t::iterator vec_iter;
-
-class Event {
-public:
-	Event(int eventType, std::string eventName, point_2d coordinates);
-	Event(int eventType, std::string eventName, segment_2d eventSegment);
-	int type();
-
-protected:
-	int eventType;
-	// generalize event coordinates to segment_2d. If event is a point, then eventSegment.p1 == eventSegment.p2
-	segment_2d eventSegment;
-	std::string eventName;
-};
-
-class InOutEvent : public Event {
-public:
-	InOutEvent(int eventType, std::string eventName, point_2d coordinates, segment_2d *adjFloorEdgePtr, segment_2d *adjCeilEdgePtr);
-
-private:
-	segment_2d *adjFloorEdge;
-	segment_2d *adjCeilEdge;
-};
-
-class InEvent : public InOutEvent {
-public:
-	InEvent(std::string eventName, point_2d coordinates, segment_2d *adjFloorEdgePtr, segment_2d *adjCeilEdgePtr);
-};
-
-class BeginEvent : public InOutEvent {
-public:
-	BeginEvent(std::string eventName, point_2d coordinates, segment_2d *adjFloorEdgePtr, segment_2d *adjCeilEdgePtr);
-};
-
-class OutEvent : public InOutEvent {
-public:
-	OutEvent(std::string eventName, point_2d coordinates, segment_2d *adjFloorEdgePtr, segment_2d *adjCeilEdgePtr);
-};
-
-class EndEvent : public InOutEvent {
-public:
-	EndEvent(std::string eventName, point_2d coordinates, segment_2d *adjFloorEdgePtr, segment_2d *adjCeilEdgePtr);
-};
-
-class SurveyArea {
+class Polygon {
 public:
 	// accepts 2d array of vertices of the survey area
-	SurveyArea(double coords[][2], int num_of_pts);
+	Polygon(double coords[][2], int num_of_pts);
+	intersect_seq_t line_intersect(double xCoord);
 private:
-	coord_seq_t vertices;
+	pt_seq_t vertices;
+	edge_seq_t edges;
 	polygon_2d poly;
+};
+
+class SurveyArea : public Polygon {
+public:
+	SurveyArea(double coords[][2], int num_of_pts);
+};
+
+class Obstacle : public Polygon {
+
 };
 
 class BoustrophedonCell {
 public:
 	BoustrophedonCell(double leftEndPoint, segment_2d *startCeilSegmentPtr, segment_2d *startFloorSegmentPtr);
-	void update(Event event);
+	void update(Event<point_2d> event);
+	void update(Event<segment_2d> event);
 	void terminate(double rightEndPoint);
 
 private:
