@@ -24,7 +24,38 @@ Algorithm:
 			cell, which has the edge prior to the event as floor 
 			or root.
 
-		- Close Cells and start new ones:
+Classes:
+	- Event:
+		Stores event location and the edges adjacent to the event
+
+		inEvent : Event
+		outEvent: Event				
+		beginEvent : inEvent
+		endEvent: outEvent
+
+		middleEvent : Event
+		Middle event can be further classified to CEILING and FLOOR events
+
+
+		* END event can be impl. as a special type of IN event. (and BEGIN as OUT) 
+		* Events could be edges or points
+
+	- Polygon : polygon_2d
+		Interfaces:
+		1. Given an event location, check if the polygon has an intersection
+		with the scan line at the event location. If so, return the edges
+		of the polygon that intersect with the scan line.
+
+		Data:
+			- Edges : segment_2d
+				Each edge inherits from 
+			- Vertices : point_2d
+				Each vertex contains an event
+
+	- surveyArea : Polygon:
+		generate events (MIDDLE, BEGIN, END) for all vertices.
+			
+		Close Cells and start new ones:
 			Check open cells to see if their ceiling and floor edges
 			match any of the edges that the events' scanlines have
 			intersected. If so, the cell is affected and terminated.
@@ -34,36 +65,13 @@ Algorithm:
 			When opening new cells, check if the starting ceiling and
 			floor edges of any two are the same. If so, they are duplicates
 			and one should be removed.
-Classes:
-	- Event:
-		BEGIN event: store next roof and floor edges following the event
-		END event: no need to store edges
-		IN event: store 
-		OUT event: store widest possible pair of edges after the event so
-			that we close all cells that have pairs of roof and floor
-			edges within them.
+		
+		Data:
+		- BoustrophedonCells
 
-		MIDDLE event:
-		Middle event can be further classified to CEILING and FLOOR events
-
-
-	* END event can be impl. as a special type of IN event. (and BEGIN as OUT) 
-	* events could be edges or points
-
-	- Polygon : polygon_2d
-		Interfaces:
-		1. Given an event location, check if the polygon has an intersection
-		with the scan line at the event location. If so, return the edges
-		of the polygon that intersect with the scan line.
-
-		Members:
-			- Edges : segment_2d
-				Each edge inherits from 
-			- Vertices : point_2d
-				Each vertex contains an event
-
-	- surveyArea : Polygon:
-		generate events (MIDDLE, BEGIN, END) for all vertices.
+		Interface:
+		- update():
+			Given events, terminate and start B. cells as stated above.	
 
 	- obstacle : Polygon:
 		generate events (MIDDLE, IN, OUT) for all vertices.
@@ -99,4 +107,5 @@ Implementation:
 	Things to learn:
 		- inheritance
 		- C++ templates
+			built-in types in template arguments
 		- STL containers
