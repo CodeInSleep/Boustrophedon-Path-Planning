@@ -1,2 +1,4 @@
 lib Event : Event.cpp ;
-exe path_planning : path_planning.cpp Event ;
+lib path_planning : path_planning.cpp Event ;
+exe test : test.cpp path_planning Event ;
+

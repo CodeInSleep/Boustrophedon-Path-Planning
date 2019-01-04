@@ -11,10 +11,17 @@ PtEvent::PtEvent(enum IEvent::eventTypes eventType, string eventName, const poin
 		segment_2d *prevEdge, segment_2d *nextEdge)
 	: IEvent(eventType, eventName, prevEdge, nextEdge), eventObj(eventObj) {}
 
+double PtEvent::getxCoord() {
+	return get<0>(*eventObj);
+}
+
 SegEvent::SegEvent(enum IEvent::eventTypes eventType, string eventName, const segment_2d *eventObj, 
 		segment_2d *prevEdge, segment_2d *nextEdge)
 	: IEvent(eventType, eventName, prevEdge, nextEdge), eventObj(eventObj) {}
 
+double SegEvent::getxCoord() {
+	return get<0>((*eventObj).first);
+}
 // Event::Event(Event::eventType eventType, string eventName, point_2d *eventPt, segment_2d *prevEdge, segment_2d *nextEdge)
 // 	: _eventType(eventType), _eventName(eventName), _eventPt(eventObj),
 // 	_prevEdge(prevEdge), _nextEdge(_nextEdge) {}

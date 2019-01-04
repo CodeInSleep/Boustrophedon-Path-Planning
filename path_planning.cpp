@@ -18,20 +18,32 @@ std::string boolstr(bool v)
     return v ? "true" : "false";
 }
 
+// configuration of test drone
 struct drone_test_configuration {
     double altitude;
 };
 
-BoustrophedonCell::BoustrophedonCell(double leftEndPoint, segment_2d *startCeilSegmentPtr, segment_2d *startFloorSegmentPtr)
-    : leftEndPoint(leftEndPoint) {
-        ceilSegmentPtrs.push_back(startCeilSegmentPtr);
-        floorSegmentPtrs.push_back(startFloorSegmentPtr);
+BoustrophedonCell::BoustrophedonCell(IEvent *startEvent, 
+    const segment_2d *startCeilSegPtr, const segment_2d *startFloorSegPtr)
+    : leftEndEvent(startEvent), terminated(false) {
+        ceilSegPtrs.push_back(startCeilSegPtr);
+        floorSegPtrs.push_back(startFloorSegPtr);
+}
+
+void BoustrophedonCell::terminate(IEvent *endEvent) {
+    // if the cell has not been terminated, then terminate it. If it
+    // has been terminated, we do nothing.
+    if (!terminated) {
+        terminated = true;
+        rightEndEvent = endEvent;
+    }
 }
 
 void BoustrophedonCell::update(IEvent *event) {
-    //TODO: check if the current cell is involved in the event (i.e. in contact with the event line)
+    // TODO: check if the current cell is involved in the event (i.e. in contact with the event line)
 }
 
+// function to generate path for a single B. cell
 std::vector<point_2d> gen_path(BoustrophedonCell cell) {
     std::vector<point_2d> generatedPath;
 
@@ -46,6 +58,7 @@ struct compare {
     }
 };
 
+// function to find minimum and maximum item along dimension D
 template <int D>
 pair<double, double> minmax(pt_seq_t &seq) {
     double xMin = get<D>(seq[0]);
@@ -80,29 +93,24 @@ pt_seq_t leftCircularShift(pt_seq_t &pts) {
             min_ele_iter_vec.push_back(iter);
     }
 
-    // sort the iterators in decreasing order according to the y-coordinates of
+    // sort the iterators in decreasing order according to the D_prime dimension of
     // the points pointed to by the iterators. We do this so that in the return 
-    // vector, we know which point pointed to by the iterators is on top and which
-    // is on bottom.
+    // vector, we know which point is on top.
     sort(min_ele_iter_vec.begin(), min_ele_iter_vec.end(), compare<D_prime, false>());
 
     // take the point with the smallest x-coordinate with the largest y-coordinate
-    pt_const_iter_t leftShift = min_ele_iter_vec[0];
-    // pt_iter_t leftShiftCopy = leftShift;
-    // if (leftShift == poly.begin()) {
-    //     leftShift = (get<0>(*leftShift) == get<0>(*(poly.end()-1))) ? poly.end()-1 : leftShift;
-    // }
-    // else if (get<0>(*leftShift) == (get<0>(*(leftShiftCopy--)))) {
-    //     leftShift = leftShiftCopy;
-    // }
-    cout << "left shift from: " << get<0>(*leftShift) << ", " << get<1>(*leftShift) << endl;
+    pt_const_iter_t startPtr = min_ele_iter_vec[0];
+    
+    cout << "left shift from: " << get<0>(*startPtr) << ", " << get<1>(*startPtr) << endl;
+
+    // store shifted result
     pt_seq_t shifted_poly;
     
     pt_const_iter_t vtx_iter;
-    for (vtx_iter = leftShift; vtx_iter < pts.end(); vtx_iter++) {
+    for (vtx_iter = startPtr; vtx_iter < pts.end(); vtx_iter++) {
         shifted_poly.push_back(*vtx_iter);
     }
-    for (vtx_iter = pts.begin(); vtx_iter < leftShift; vtx_iter++) {
+    for (vtx_iter = pts.begin(); vtx_iter < startPtr; vtx_iter++) {
         shifted_poly.push_back(*vtx_iter);
     }
 
@@ -113,7 +121,7 @@ template <typename T>
 void printSeq(const vector<T> &seq) {
     // loop through coordinates
     for (typename vector<T>::const_iterator iter = seq.begin(); iter != seq.end(); ++iter) {
-        cout << dsv(*iter);
+        cout << typeid(seq[0]).name() << dsv(*iter);
     }
 
     cout << "\n";
@@ -122,12 +130,12 @@ void printSeq(const vector<T> &seq) {
 template<>
 void printSeq<intersect_t>(const vector<intersect_t> &seq) {
     for (vector<intersect_t>::const_iterator iter = seq.begin(); iter != seq.end(); ++iter) {
-        cout << dsv((*iter).first) << ", " << dsv((*iter).second) << endl;
+        cout << typeid(seq[0]).name() << dsv((*iter).first) << ", " << dsv((*iter).second) << endl;
     }
 }
 
-
-Polygon::Polygon(double coords[][2], int num_of_pts) {
+Polygon::Polygon(double coords[][2], int num_of_pts, Polygon::polyTypes polyType)
+    : polyType(polyType) {
     if (num_of_pts < 3)
         throw invalid_argument("received a polygon with less than 3 vertices..");
     // left circular shift so that the leftmost vertex is in the first position
@@ -161,22 +169,25 @@ Polygon::Polygon(double coords[][2], int num_of_pts) {
     assign_points<polygon_2d, vector<point_2d> >(poly, vertices);
 }
 
+segment_2d scanLine(double xCoord, double ymin, double ymax) {
+    return segment_2d(
+        point_2d(xCoord, ymin),
+        point_2d(xCoord, ymax)
+    );
+}
+
+// given x-coordinate of scanLine, reutrn the edges of the polygon intersected
+// at xCoord and the corresponding points of intersection as pairs
 intersect_seq_t Polygon::line_intersect(double xCoord) {
     pair<double, double> result = minmax<1>(vertices);
 
     // create vertical line that span the height of the polygon
-    segment_2d scanLine = segment_2d(
-        point_2d(xCoord, result.first),
-        point_2d(xCoord, result.second));
-    // cout << "scanLine: " << dsv(scanLine) << endl;
+    segment_2d line = scanLine(xCoord, result.first, result.second);
 
     intersect_seq_t intersects;
     for (edge_const_iter_t e_iter = edges.begin();e_iter != edges.end(); ++e_iter) {
         vector<point_2d> output;
-        intersection(*e_iter, scanLine, output);
-
-        // cout << "output: " << endl;
-        // printSeq(output);
+        intersection(*e_iter, line, output);
 
         if (output.size() != 0)
             intersects.push_back(intersect_t(output[0], *e_iter));
@@ -184,9 +195,6 @@ intersect_seq_t Polygon::line_intersect(double xCoord) {
 
     return intersects;
 }
-
-SurveyArea::SurveyArea(double coords[][2], int num_of_pts)
-    : Polygon(coords, num_of_pts) {}
 
 vector<IEvent *> Polygon::generateEvents(string startEventName, string endEventName) {
     pair<double, double> result = minmax<0>(vertices);
@@ -240,44 +248,48 @@ vector<IEvent *> Polygon::generateEvents(string startEventName, string endEventN
     return events;
 }
 
+// given xCoord and vector of obstacles generate the eventLine, which spans from the
+// closest intersect (either with an obstacle or a border) above the event location to
+// the close intersect (either with an obstacle or a border) below the event location
+segment_2d SurveyArea::eventLine(IEvent &event) {
+
+}
+
+// find new openings to open new B. cells with. "opening lines" = eventLines - eventObjs
+vector<segment_2d> SurveyArea::newOpenings(IEvent &event) {
+
+}
+
+SurveyArea::SurveyArea(double coords[][2], int num_of_pts)
+    : Polygon(coords, num_of_pts, Polygon::OUTER) {}
+
+void SurveyArea::update(IEvent *eventPtr) {
+    enum IEvent::eventTypes eventType = eventPtr->eventType;
+
+    if (eventType == IEvent::BEGIN) {
+        // begin a new cell with the begin event
+        cells.push_back(BoustrophedonCell(eventPtr, eventPtr->prevEdge, eventPtr->nextEdge));
+    } else if (eventType == IEvent::END) {
+        // end the cells that are in contact with the eventLine = scanLine - obstacles
+
+        // segment_2d eventLine = eventLine()
+        
+    } else if (eventType == IEvent::IN) {
+        // subtract obstacles that are not events from 
+        // close off any opened cells with floor and ceiling edges included
+        // in scan line.
+
+    }
+}
+
 vector<IEvent *> SurveyArea::generateEvents() {
     return Polygon::generateEvents("BEGIN event", "END event");
 }
+
+Obstacle::Obstacle(double coords[][2], int num_of_pts)
+    : Polygon(coords, num_of_pts, Polygon::INNER) {}
 
 vector<IEvent *> Obstacle::generateEvents() {
     return Polygon::generateEvents("IN event", "OUT event");
 }
 
-int main(void)
-{
-    double coords[4][2] = {  {0, 0}, {400, 0}, {400, 400}, {0, 400} };
-    int num_of_pts = sizeof(coords)/sizeof(coords[0]);
-    double (*coords_ptr)[2] = coords;
-    SurveyArea sa(coords_ptr, num_of_pts);
-
-    // intersect_seq_t intersects = sa.line_intersect(200);
-    // cout << "intersects: " << endl;
-    // printSeq(intersects);
-
-    vector<IEvent *> events = sa.generateEvents();
-    // print events of survey area
-    for (vector<IEvent *>::const_iterator iter = events.begin(); iter != events.end(); ++iter) {
-        // dynamic cast to PtEvent or SegEvent
-        PtEvent *ptEventPtr = dynamic_cast<PtEvent *>(*iter);
-        SegEvent *segEventPtr = dynamic_cast<SegEvent *>(*iter);
-
-        cout << "eventType: " << eventTypeNames[(**iter).eventType] << endl;
-        cout << "eventName: " << (**iter).eventName << endl;
-
-        if (ptEventPtr)
-            cout << "eventObj(point): " << dsv(*ptEventPtr->eventObj) << endl;
-        else if (segEventPtr)
-            cout << "eventObj(segment): " << dsv(*segEventPtr->eventObj) << endl;
-        cout << "prevEdge: " << dsv((**iter).prevEdge) << endl;
-        cout << "nextEdge: " << dsv((**iter).nextEdge) << endl;
-        cout << "\n";
-        free(*iter);
-    }
-
-    return 0;
-}

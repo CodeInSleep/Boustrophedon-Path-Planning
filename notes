@@ -55,23 +55,50 @@ Classes:
 	- surveyArea : Polygon:
 		generate events (MIDDLE, BEGIN, END) for all vertices.
 			
-		Close Cells and start new ones:
-			Check open cells to see if their ceiling and floor edges
-			match any of the edges that the events' scanlines have
-			intersected. If so, the cell is affected and terminated.
-			New cells are opened.
-
-			*Check for duplicates:
-			When opening new cells, check if the starting ceiling and
-			floor edges of any two are the same. If so, they are duplicates
-			and one should be removed.
+		Update B. cells:
+		  1. Determine which B. cells are affected
+		    B. cells adjacent to event lines are affected. B. cells that
+		    are affected are terminated.
+		  2. Updating cells
+		    IN events: order events' prevEdges and nextEdges. Start new B. cells
+			with pairs of edges.
+		    MIDDLE events:
+			For obstacles:
+	 		  FLOOR events:
+			    update the affected B. cell by appending the event's prevEdge to
+			    the affected B. cell's floorSegPtrs.
+			  CEIL events:
+			    update the affected B. cell by appending the event's nextEedge to
+			    the affected B. cell's ceilSegPtrs.
+			For surveyArea:
+			  FLOOR events:
+			    update .... appending the event's nextEdge to .... B. cell's floorSegPtrs
+			  CEIL events:
+			    update ... appending the event's prevEdge to ... B. cell's ceilSegPtrs
+		    OUT events: take the widest possible ceiling/floor pair of all the
+				affected B. cells.
 		
+		  Implementation:
+		  At (x = xCoord):
+		  a. B. cells that should be closed off have their last floor and ceiling edges
+			within the eventLine = scanLine - obstacles at xCoord (subtract)).
+			
+			Proof by Contradiction:
+			If B.cell that should be closed off is not within scanLine - obstacles, then
+			there must be an obstacle that blocks the eventLine from spanning to the B.cell's
+			full width.
+		  b. Find "opening lines" = eventLine - eventObjs at xCoord (subtract()). 
+			"opening lines" are the new starting points of new cells.
+
+		  c. new B. cells that should be opened start with "openings", which can be matched
+			with the sorted floor and ceiling edges as described in (IN events above) 
 		Data:
 		- BoustrophedonCells
 
 		Interface:
 		- update():
-			Given events, terminate and start B. cells as stated above.	
+			Given events, terminate and start B. cells as stated above.
+			
 
 	- obstacle : Polygon:
 		generate events (MIDDLE, IN, OUT) for all vertices.
@@ -104,8 +131,3 @@ Implementation:
 	Things to think about:
 		- Should SurveyArea and Obstacle classes be subclasses of polygon_2d?
 
-	Things to learn:
-		- inheritance
-		- C++ templates
-			built-in types in template arguments
-		- STL containers

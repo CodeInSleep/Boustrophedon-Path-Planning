@@ -24,6 +24,7 @@ public:
 	const segment_2d *prevEdge;
 	const segment_2d *nextEdge;
 
+	virtual double getxCoord() = 0;
 	virtual ~IEvent() {};
 
 };
@@ -34,6 +35,7 @@ public:
 	PtEvent(enum IEvent::eventTypes eventType, string eventName, const point_2d *eventObj, 
 		segment_2d *prevEdge, segment_2d *nextEdge);
 
+	double getxCoord();
 	// virtual point_2d *getEventObj();
 	const point_2d *eventObj;	
 };
@@ -44,6 +46,7 @@ public:
 	SegEvent(enum IEvent::eventTypes eventType, string eventName, const segment_2d *eventObj, 
 		segment_2d *prevEdge, segment_2d *nextEdge);
 
+	double getxCoord();
 	// virtual segment_2d *getEventObj();
 	const segment_2d *eventObj;	
 };
