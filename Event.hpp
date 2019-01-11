@@ -11,21 +11,31 @@ string eventTypeNames[] =
 	"END",
 	"IN", 
 	"OUT",
-	"MIDDLE"
+	"CEILING",
+	"FLOOR",
 };
 
 class IEvent {
 public:
-	enum eventTypes {BEGIN, END, IN, OUT, MIDDLE};
+	enum eventTypes {BEGIN, END, IN, OUT, CEILING, FLOOR};
 
-	IEvent(eventTypes eventType, std::string eventName, segment_2d *prevEdge, segment_2d *nextEdge);
+	IEvent(eventTypes eventType, string eventName, const point_2d *eventObj, segment_2d *prevEdge, segment_2d *nextEdge);
+	IEvent(eventTypes eventType, string eventName, const segment_2d *eventObj, segment_2d *prevEdge, segment_2d *nextEdge);
 	const eventTypes eventType;
 	const std::string eventName;
 	const segment_2d *prevEdge;
 	const segment_2d *nextEdge;
+	
+	inline double getxCoord() { return xCoord; }
+	inline double getMinY() { return minY; }
+	inline double getMaxY() { return maxY; }
+	virtual ~IEvent() {}
 
-	virtual double getxCoord() = 0;
-	virtual ~IEvent() {};
+protected:
+	double xCoord;
+	double minY;
+	double maxY;
+	
 
 };
 
@@ -35,7 +45,6 @@ public:
 	PtEvent(enum IEvent::eventTypes eventType, string eventName, const point_2d *eventObj, 
 		segment_2d *prevEdge, segment_2d *nextEdge);
 
-	double getxCoord();
 	// virtual point_2d *getEventObj();
 	const point_2d *eventObj;	
 };
@@ -46,7 +55,6 @@ public:
 	SegEvent(enum IEvent::eventTypes eventType, string eventName, const segment_2d *eventObj, 
 		segment_2d *prevEdge, segment_2d *nextEdge);
 
-	double getxCoord();
 	// virtual segment_2d *getEventObj();
 	const segment_2d *eventObj;	
 };
