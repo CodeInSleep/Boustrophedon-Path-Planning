@@ -6,27 +6,17 @@
 
 using namespace std;
 
-class BoustrophedonCell {
-public:
-	BoustrophedonCell(IEvent *startEvent, const segment_2d *startCeilSegPtr, const segment_2d *startFloorSegPtr);
-	void update(IEvent *event);
-	void terminate(IEvent *endEvent);
-
-private:
-	bool terminated;
-	IEvent *leftEndEvent;
-	IEvent *rightEndEvent;
-	vector<const segment_2d*> ceilSegPtrs;
-	vector<const segment_2d*> floorSegPtrs;
-};
+class BoustrophedonCell;
+class Obstacle;
 
 class Polygon {
 public:
 	enum polyTypes {INNER, OUTER};
 	// accepts 2d array of vertices of the survey area
 	Polygon(double coords[][2], int num_of_pts, polyTypes polyType);
-	intersect_seq_t line_intersect(double xCoord);
 	vector<IEvent *> generateEvents(string startEventName, string endEventName);
+	inline pt_seq_t getVertices() { return vertices; }
+	inline edge_seq_t getEdges() { return edges; }
 	
 protected:
 	pt_seq_t vertices;
@@ -39,16 +29,21 @@ private:
 
 class SurveyArea : public Polygon {
 public:
-	SurveyArea(double coords[][2], int num_of_pts);
+	SurveyArea(double (*coords)[2], int num_of_pts);
+	~SurveyArea();
 	vector<IEvent *> generateEvents();
 
 	void update(IEvent *event);
-	segment_2d SurveyArea::eventLine(IEvent &event);
-	vector<segment_2d> SurveyArea::newOpenings(IEvent &event);
+	pair<intersect_t, intersect_t> eventLine(IEvent *event);
+	vector<BoustrophedonCell *> openCells(IEvent *event, 
+		vector<IEvent *>::iterator botEventIter, vector<IEvent *>::iterator topEventIter);
+	void closeCells(IEvent *event);
+	void updateCells(IEvent *event);
+	vector<BoustrophedonCell *> generateBCells();
 
 private:
-	vector<BoustrophedonCell> cells;
-	vector<Obstacle> obstacles;
+	vector<BoustrophedonCell *> cells;
+	vector<Obstacle *> obstacles;
 };
 
 class Obstacle : public Polygon {
@@ -56,4 +51,29 @@ public:
 	Obstacle(double coords[][2], int num_of_pts);
 	vector<IEvent *> generateEvents();
 };
+
+class BoustrophedonCell {
+public:
+	BoustrophedonCell(double leftStartPoint, const segment_2d *startCeilSegPtr, const segment_2d *startFloorSegPtr, SurveyArea *sa);
+	// void update(IEvent *event);
+	void terminate(double rightEndPoint);
+	bool affected(IEvent *event);
+	inline void addCeilSegPtr(const segment_2d* ceilSegPtr) { ceilSegPtrs.push_back(ceilSegPtr); }
+	inline void addFloorSegPtr(const segment_2d* floorSegPtr) { floorSegPtrs.push_back(floorSegPtr); }
+
+	inline double fromX() { return start; }
+	inline double tillX() { return end; }
+	inline vector<const segment_2d*> getCeilSegPtrs() { return ceilSegPtrs; }
+	inline vector<const segment_2d*> getFloorSegPtrs() { return floorSegPtrs; }
+	inline SurveyArea *within() { return surveyArea; }
+
+private:
+	bool terminated;
+	double start;
+	double end;
+	vector<const segment_2d*> ceilSegPtrs;
+	vector<const segment_2d*> floorSegPtrs;
+	SurveyArea *surveyArea;
+};
+
 #endif
