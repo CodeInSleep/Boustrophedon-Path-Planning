@@ -13,6 +13,8 @@
 
 using namespace std;
 
+double EPSILON = 1e-7;
+
 typedef vector<BoustrophedonCell *> cell_seq_t;
 typedef vector<BoustrophedonCell *>::iterator cell_iter_t;
 
@@ -57,8 +59,6 @@ struct compare_xy {
     }
 };
 
-
-
 // function to find minimum and maximum item along dimension D
 template <int D>
 pair<double, double> minmax(pt_seq_t &seq) {
@@ -102,7 +102,6 @@ pt_seq_t leftCircularShift(pt_seq_t &pts) {
     // take the point with the smallest x-coordinate with the largest y-coordinate
     pt_const_iter_t startPtr = min_ele_iter_vec[0];
     
-    cout << "left shift from: " << get<0>(*startPtr) << ", " << get<1>(*startPtr) << endl;
 
     // store shifted result
     pt_seq_t shifted_poly;
@@ -143,6 +142,8 @@ void addIntersect(const segment_2d *l1, const segment_2d *l2, intersect_seq_t &i
     intersection(*l1, *l2, output);
 
     if (output.size() != 0) {
+        // cout << "checking intersection with " << dsv(*l1) << " and " << dsv(*l2) << endl;
+        // cout << "add line intersect: " << output[0] << endl;
         intersect_t intersect = make_pair(output[0], l1);
         intersects.push_back(intersect);
     }
@@ -158,7 +159,6 @@ segment_2d scanLine(double xCoord, Polygon *poly) {
         point_2d(xCoord, mm.second)
     );
 }
-
 
 // given x-coordinate of scanLine, return the edges of the polygon intersected
 // at xCoord and the corresponding points of intersection as pairs
@@ -186,11 +186,55 @@ intersect_seq_t line_intersect(BoustrophedonCell *cell, IEvent *eventPtr) {
     intersect_seq_t intersects;
 
     const segment_2d line = scanLine(eventPtr->getxCoord(), cell->within());
-
     addIntersect(&(*(cell->getFloorSegPtrs().back())), &line, intersects);
     addIntersect(&(*(cell->getCeilSegPtrs().back())), &line, intersects);
 
     return intersects;
+}
+
+
+// given xCoord and vector of obstacles generate the eventLine, which spans from the
+// closest intersect (either with an obstacle or a border) above the event location to
+// the close intersect (either with an obstacle or a border) below the event location
+pair<intersect_t, intersect_t> eventLine(SurveyArea *sa, IEvent *event) {
+    intersect_seq_t intersects;
+
+    // get all intersecting points of the event line with the polygons and calculate how
+    // wide the event line spans (within the border of survey area and without crossing obstacles)
+    intersect_seq_t saIntersects = line_intersect(sa, event);
+    // vector<Obstacle *> obstacles = sa->getObstacles();
+    // intersects.insert(intersects.end(), saIntersects.begin(), saIntersects.end());
+    // for (vector<Obstacle *>::iterator iter = obstacles.begin(); iter != obstacles.end(); ++iter) {
+    //     intersect_seq_t obIntersects = line_intersect(*iter, event);
+    //     intersects.insert(intersects.end(), obIntersects.begin(), obIntersects.end());
+    // }
+
+    // sort(intersects.begin(), intersects.end(), compareIntersects<1, true>());
+    // cout << "eventLine intersects: " << endl;
+    // printSeq(intersects);
+
+    // double eventMinY = event->getMinY();
+    // double eventMaxY = event->getMaxY();
+
+    // vector<intersect_t>::reverse_iterator lowIntersectIter;
+    // vector<intersect_t>::iterator highIntersectIter;
+    
+    // scanning for the intersect with the largest y coordinate from the bottom up
+    // for (highIntersectIter = intersects.begin(); highIntersectIter != intersects.end() &&
+    //     get<1>((*highIntersectIter).first) < eventMaxY; ++highIntersectIter)
+
+    // scanning for the intersect with the smallest y coordinate from the top down
+    // for (lowIntersectIter = intersects.rbegin(); lowIntersectIter != intersects.rend() &&
+    //     get<1>((*lowIntersectIter).first) > eventMinY; ++lowIntersectIter)
+
+    // special cases where the event has the maximum or minimum coordinates of intersects
+    // if (event->eventType == IEvent::CEILING)
+    //     lowIntersectIter++;
+    // else if (event->eventType == IEvent::FLOOR)
+    //     highIntersectIter++;
+
+    // return pair<intersect_t, intersect_t>(*lowIntersectIter, *highIntersectIter);
+    return pair<intersect_t, intersect_t>(saIntersects[0], saIntersects[1]);
 }
 
 
@@ -215,19 +259,25 @@ bool BoustrophedonCell::affected(IEvent *event) {
         return false;
 
     // get the surveyArea that the cell is in
-    SurveyArea *parent = within();
-    pair<intersect_t, intersect_t> evtLine = parent->eventLine(event);
+    pair<intersect_t, intersect_t> evtLine = eventLine(this->within(), event);
+    cout << "eventLine from " << dsv(evtLine.first.first) << " to " << dsv(evtLine.second.first) << endl;
 
     // check if the latest floor and ceiling edges of the cells have intersects within
     // the eventLine, terminate them.
-    intersect_seq_t cellIntersect = line_intersect(this, event);
+    intersect_seq_t cellIntersects = line_intersect(this, event);
+    
+    // cout << "intersects: " << endl;
+    // printSeq(cellIntersects);
 
-    if (cellIntersect.size() != 2)
+    if (cellIntersects.size() != 2)
         return false;
 
     // check if the openings of opened B. cells are within the eventLine
-    return (get<1>(cellIntersect[0].first) >= get<1>(evtLine.first.first) &&
-        get<1>(cellIntersect[1].first) <= get<1>(evtLine.second.first));
+    // i.e. the top cellIntersect is less 
+    return ((definitelyLessThan(get<1>(cellIntersects[0].first), get<1>(evtLine.first.first), EPSILON) &&
+        approximatelyEqual(get<1>(cellIntersects[0].first), get<1>(evtLine.first.first), EPSILON)) &&
+        ((definitelyGreaterThan(get<1>(cellIntersects[1].first), get<1>(evtLine.second.first), EPSILON)) &&
+            approximatelyEqual(get<1>(cellIntersects[0].first), get<1>(evtLine.first.first), EPSILON)));
 }
 
 Polygon::Polygon(double coords[][2], int num_of_pts, Polygon::polyTypes polyType)
@@ -256,16 +306,16 @@ Polygon::Polygon(double coords[][2], int num_of_pts, Polygon::polyTypes polyType
         edges.push_back(segment_2d(*iter, *nextPtIter));
     }
 
-    cout << "vertices: " << endl;
-    printSeq(vertices);
-    cout << "edges: " << endl;
-    printSeq(edges);
+    // cout << "vertices: " << endl;
+    // printSeq(vertices);
+    // cout << "edges: " << endl;
+    // printSeq(edges);
 
     // make a boost polygon representation from vertices
     assign_points<polygon_2d, vector<point_2d> >(poly, vertices);
 }
 
-vector<IEvent *> Polygon::generateEvents(string startEventName, string endEventName) {
+vector<IEvent *> Polygon::generateEvents(string startEventName, string endEventName, bool sorted) {
     pair<double, double> result = minmax<0>(vertices);
     double minX = result.first;
     double maxX = result.second;
@@ -304,7 +354,9 @@ vector<IEvent *> Polygon::generateEvents(string startEventName, string endEventN
         }
 
         size_t next_edge_idx = vtx_idx;
-        size_t prev_edge_idx = (vtx_idx == 0) ? vertices.size()-1 : vtx_idx - 1;
+        size_t prev_edge_idx = (vtx_idx) ? vtx_idx - 1 : edges.size()-1;
+        // cout << "vtx_idx: " << vtx_idx << endl;
+        // cout << "prev_idx: " << prev_edge_idx << endl;
         PtEvent *newPtEventPtr = new PtEvent(eventType, eventName, point_ptr, 
                 &(edges[prev_edge_idx]), &(edges[next_edge_idx]));
         events.push_back(newPtEventPtr);
@@ -325,58 +377,19 @@ vector<IEvent *> Polygon::generateEvents(string startEventName, string endEventN
         }
     }
 
-    // sort all events from left to right, bottom to top.
-    sort(events.begin(), events.end(), compare_xy());
-    return events;
-}
-
-// given xCoord and vector of obstacles generate the eventLine, which spans from the
-// closest intersect (either with an obstacle or a border) above the event location to
-// the close intersect (either with an obstacle or a border) below the event location
-pair<intersect_t, intersect_t> SurveyArea::eventLine(IEvent *event) {
-    // only called with IN, OUT events to determine the edges for the new cells; therefore,
-    // it is guaranteed that there are a set of intersections above and below the eventObj.
-    intersect_seq_t intersects;
-
-    // get all intersecting points of the event line with the polygons and calculate how
-    // wide the event line spans (within the border of survey area and without crossing obstacles)
-    intersect_seq_t saIntersects = line_intersect(this, event);
-    intersects.insert(intersects.end(), saIntersects.begin(), saIntersects.end());
-    for (vector<Obstacle *>::iterator iter = obstacles.begin(); iter != obstacles.end(); ++iter) {
-        intersect_seq_t obIntersects = line_intersect(*iter, event);
-        intersects.insert(intersects.end(), obIntersects.begin(), obIntersects.end());
+    if (sorted) {
+        // sort all events from left to right, bottom to top.
+        sort(events.begin(), events.end(), compare_xy());
     }
 
-    sort(intersects.begin(), intersects.end(), compareIntersects<1, true>());
-
-    double eventMinY = event->getMinY();
-    double eventMaxY = event->getMaxY();
-
-    vector<intersect_t>::reverse_iterator lowIntersectIter;
-    vector<intersect_t>::iterator highIntersectIter;
-    
-    // scanning for the intersect with the largest y coordinate from the bottom up
-    for (highIntersectIter = intersects.begin(); highIntersectIter != intersects.end() &&
-        get<1>((*highIntersectIter).first) < eventMaxY; ++highIntersectIter)
-
-    // scanning for the intersect with the smallest y coordinate from the top down
-    for (lowIntersectIter = intersects.rbegin(); lowIntersectIter != intersects.rend() &&
-        get<1>((*lowIntersectIter).first) > eventMinY; ++lowIntersectIter)
-
-    // special cases where the event has the maximum or minimum coordinates of intersects
-    if (event->eventType == IEvent::CEILING)
-        lowIntersectIter++;
-    else if (event->eventType == IEvent::FLOOR)
-        highIntersectIter++;
-
-    return pair<intersect_t, intersect_t>(*lowIntersectIter, *highIntersectIter);
+    return events;
 }
 
 // find new openings to open new B. cells with. "opening lines" = eventLine - eventObjs
 vector<BoustrophedonCell *> SurveyArea::openCells(IEvent *event, 
     vector<IEvent *>::iterator botEventIter, vector<IEvent *>::iterator topEventIter) {
 
-    pair<intersect_t, intersect_t> evtLine = eventLine(event);
+    pair<intersect_t, intersect_t> evtLine = eventLine(this, event);
 
     // assume events are sorted from top to bottom and are within eventLine
     vector<BoustrophedonCell *> cellsOpened;    
@@ -384,7 +397,7 @@ vector<BoustrophedonCell *> SurveyArea::openCells(IEvent *event,
     const segment_2d *topLinePtr = evtLine.second.second;
     const segment_2d *botLinePtr = evtLine.first.second;
 
-    double leftStartPoint = get<0>(evtLine.first.first);
+    double leftStartPoint = event->getxCoord();
     BoustrophedonCell *newCell;
     vector<IEvent *>::iterator iter;
 
@@ -449,8 +462,11 @@ vector<BoustrophedonCell *> SurveyArea::generateBCells() {
         allEvents.insert(allEvents.end(), obEvents.begin(), obEvents.end());
     }
 
+    sort(allEvents.begin(), allEvents.end(), compare_xy());
+
+
     // loop through all events
-    for (vector<IEvent *>::iterator event_iter = allEvents.begin(); event_iter != allEvents.end();) {
+    for (vector<IEvent *>::iterator event_iter = allEvents.begin(); event_iter != allEvents.end();++event_iter) {
         IEvent *eventPtr = *event_iter;
         IEvent::eventTypes eventType = eventPtr->eventType;
         const segment_2d *prevEdge = eventPtr->prevEdge;
@@ -461,13 +477,12 @@ vector<BoustrophedonCell *> SurveyArea::generateBCells() {
             cout << "encountered BEGIN event" << endl;
             // begin a new cell with the begin event
             cells.push_back(new BoustrophedonCell(xCoord, prevEdge, nextEdge, this));
-            event_iter++;
+            
         } else if (eventType == IEvent::END) {
             cout << "encountered END event" << endl;
             // terminate all remaining cells that are opened
             for (vector<BoustrophedonCell *>::iterator iter = cells.begin(); iter != cells.end(); ++iter)
                 (*iter)->terminate(xCoord);
-            event_iter++;
         } else if (eventType == IEvent::IN) {
             cout << "encountered IN event" << endl;
             // subtract obstacles that are not events from 
@@ -483,6 +498,8 @@ vector<BoustrophedonCell *> SurveyArea::generateBCells() {
             cells.insert(cells.end(), cellsOpened.begin(), cellsOpened.end());
 
             event_iter = event_tmp_iter;
+            // go to next loop
+            continue;
         } else if (eventType == IEvent::OUT) {
             cout << "encountered OUT event" << endl;
             closeCells(*event_iter);
@@ -500,14 +517,14 @@ SurveyArea::~SurveyArea() {
         free(*iter);
 }
 
-vector<IEvent *> SurveyArea::generateEvents() {
-    return Polygon::generateEvents("BEGIN event", "END event");
+vector<IEvent *> SurveyArea::generateEvents(bool sorted) {
+    return Polygon::generateEvents("BEGIN event", "END event", sorted);
 }
 
 Obstacle::Obstacle(double coords[][2], int num_of_pts)
     : Polygon(coords, num_of_pts, Polygon::INNER) {}
 
-vector<IEvent *> Obstacle::generateEvents() {
-    return Polygon::generateEvents("IN event", "OUT event");
+vector<IEvent *> Obstacle::generateEvents(bool sorted) {
+    return Polygon::generateEvents("IN event", "OUT event", sorted);
 }
 

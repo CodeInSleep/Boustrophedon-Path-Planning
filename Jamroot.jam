@@ -1,4 +1,6 @@
+lib util : util.cpp ;
 lib Event : Event.cpp ;
-lib path_planning : path_planning.cpp Event ;
-exe main : main.cpp path_planning Event ;
+lib path_planning : path_planning.cpp Event util ;
+exe main : main.cpp path_planning Event : <cflags>-g ;
+
 

@@ -1,6 +1,6 @@
 #include "Event.hpp"
 
-using namespace std;
+using namespace std; 
 
 IEvent::IEvent(eventTypes evType, string eventName, const point_2d *eventObj, segment_2d *prevEdge, segment_2d *nextEdge)
 	: eventType(evType), eventName(eventName), prevEdge(prevEdge), nextEdge(nextEdge) {

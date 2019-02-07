@@ -5,7 +5,8 @@
 
 int main(void)
 {
-    double coords[][2] = {  {100, 0}, {400, 0}, {500, 400}, {250, 500}, {0, 400} };
+    // cout << approximatelyEqual(50, 50.00001, EPSILON) << endl;
+    double coords[][2] = { {100, 0}, {400, 0}, {500, 400}, {250, 500}, {0, 400} };
     int num_of_pts = sizeof(coords)/sizeof(coords[0]);
     SurveyArea sa(coords, num_of_pts);
 
@@ -15,8 +16,11 @@ int main(void)
     for (vector<IEvent *>::iterator iter = events.begin(); iter != events.end(); ++iter) {
         cout << eventTypeNames[(*iter)->eventType] << endl;
         cout << (*iter)->eventName << endl;
-        cout << "previous edge: " << dsv((*iter)->prevEdge) << endl;
-        cout << "next edge: " << dsv((*iter)->nextEdge) << endl;
+        // cout << "previous edge: " << dsv((*iter)->prevEdge) << endl;
+        // cout << "next edge: " << dsv((*iter)->nextEdge) << endl;
+
+        pair<intersect_t, intersect_t> evtLine = eventLine(&sa, *iter);
+        // cout << "eventLine from " << dsv(evtLine.first.first) << " to " << dsv(evtLine.second.first) << endl;
     }
 
 

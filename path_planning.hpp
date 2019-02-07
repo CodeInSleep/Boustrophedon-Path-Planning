@@ -1,20 +1,28 @@
 #ifndef _PATH_PLANNING_H
 #define _PATH_PLANNING_H
 
-#include "header.hpp"
+#include "util.hpp"
 #include "Event.hpp"
 
 using namespace std;
 
 class BoustrophedonCell;
 class Obstacle;
+class Polygon;
+class SurveyArea;
+
+segment_2d scanLine(double xCoord, Polygon *poly);
+intersect_seq_t line_intersect(Polygon *poly, IEvent *eventPtr);
+intersect_seq_t line_intersect(BoustrophedonCell *cell, IEvent *eventPtr);
+pair<intersect_t, intersect_t> eventLine(SurveyArea *sa, IEvent *event);
+
 
 class Polygon {
 public:
 	enum polyTypes {INNER, OUTER};
 	// accepts 2d array of vertices of the survey area
 	Polygon(double coords[][2], int num_of_pts, polyTypes polyType);
-	vector<IEvent *> generateEvents(string startEventName, string endEventName);
+	vector<IEvent *> generateEvents(string startEventName, string endEventName, bool sorted);
 	inline pt_seq_t getVertices() { return vertices; }
 	inline edge_seq_t getEdges() { return edges; }
 	
@@ -31,15 +39,16 @@ class SurveyArea : public Polygon {
 public:
 	SurveyArea(double (*coords)[2], int num_of_pts);
 	~SurveyArea();
-	vector<IEvent *> generateEvents();
+	vector<IEvent *> generateEvents(bool sorted = true);
 
 	void update(IEvent *event);
-	pair<intersect_t, intersect_t> eventLine(IEvent *event);
 	vector<BoustrophedonCell *> openCells(IEvent *event, 
 		vector<IEvent *>::iterator botEventIter, vector<IEvent *>::iterator topEventIter);
 	void closeCells(IEvent *event);
 	void updateCells(IEvent *event);
+
 	vector<BoustrophedonCell *> generateBCells();
+	inline vector<Obstacle *> getObstacles() { return obstacles; }
 
 private:
 	vector<BoustrophedonCell *> cells;
@@ -49,7 +58,7 @@ private:
 class Obstacle : public Polygon {
 public:
 	Obstacle(double coords[][2], int num_of_pts);
-	vector<IEvent *> generateEvents();
+	vector<IEvent *> generateEvents(bool sorted = true);
 };
 
 class BoustrophedonCell {
