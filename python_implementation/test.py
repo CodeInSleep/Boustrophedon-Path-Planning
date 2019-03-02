@@ -1,14 +1,25 @@
 from utils import *
 from polygon import *
+from surveyArea import *
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon
 from matplotlib.collections import PatchCollection
 
+def plot(vertices):
+	plt.plot(list(map(lambda x: x[0], vertices+vertices[:1])), list(map(lambda x: x[1], vertices+vertices[:1])))
 sa_vertices = [(4, 6), (6, 4), (5, 0), (3, 0), (2, 4)]
-# obstacles = [[(3.2, 1), (3.2, 2), (4.2, 2), (4.2, 1)]]
-plt.plot(list(map(lambda x: x[0], sa_vertices+sa_vertices[:1])), list(map(lambda x: x[1], sa_vertices+sa_vertices[:1])))
+obstacles = [[(3.2, 1), (3.2, 2), (4.2, 2), (4.2, 1)]]
+plot(sa_vertices)
+plot(obstacles[0])
+plt.show()
+sa = SurveyArea(sa_vertices, obstacles)
+sa.generateBCells()
+
+
+# print(intersects('x = 1', [Edge(Point(1, 1), Point(1, 2), 'C')]))
+
 # fig, ax = plt.subplots()
 # patches = []
 # sa_polygon = Polygon(sa_vertices, True)
@@ -21,12 +32,8 @@ plt.plot(list(map(lambda x: x[0], sa_vertices+sa_vertices[:1])), list(map(lambda
 
 # ax.add_collection(p)
 # sa_vertices = [(1, 0), (1, 4), (4, 4), (4, 0)]
-sa = SurveyArea(sa_vertices, [])
 # for e in sa.edges:
 # 	print(e)
 # print('eq: ', linearEqsToAMF(["y - 1.0x = 2.0"]))
-sa.generateBCells()
-plt.show()
 
-# print(max(sa.vertices))
 

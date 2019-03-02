@@ -6,14 +6,6 @@ from event import Event
 import math
 import re
 
-BEGINEVENT = 'BEGIN EVENT'
-ENDEVENT = 'END EVENT'
-INEVENT = 'IN EVENT'
-OUTEVENT = 'OUT EVENT'
-CEILINGEVENT = 'CEILING EVENT'
-FLOOREVENT = 'FLOOR EVENT'
-MIDEVENTS = [CEILINGEVENT, FLOOREVENT]
-
 def linearEqsToAMF(eqs):
 	coeffPattern = '(?:\s?)([-+]?(?:\s?)[\d+\.\d+]+)?([xy])(?:\s?)'
 	interceptPattern = '(?:\s?)([-+]?[\d+\.\d+]+)(?:\s?)'
@@ -44,13 +36,31 @@ class Point:
 	def __eq__(self, other):
 		return approxEqual(self.x, other.x) and approxEqual(self.y, other.y)
 
-	def __gt__(self, other):
+	def __ge__(self, other):
 		if self.x == other.x:
 			return self.y >= other.y
 		return self.x > other.x
 
+	def __lt__(self, other):
+		return not self.__ge__(other)
+
+	def __add__(self, other):
+		return Point(self.x+other.x, self.y+other.y)
+
+	def __mul__(self, other):
+		self.x *= other
+		self.y *= other
+		return self
+
 	def __repr__(self):
 		return "Point(x={}, y={})".format(self.x, self.y)
+
+	def __hash__(self):
+		return hash((self.x, self.y))
+
+	# Return Euclidean distance between two States
+	def dist(self, other):
+	    return math.sqrt((self.x - other.x)**2 + (self.y - other.y)**2)
 
 class Edge:
 	def __init__(self, v1, v2, edgeType, prevEdge=None, nextEdge=None):
@@ -83,8 +93,14 @@ class Edge:
 		return (self.v1 == other.v1 and self.v2 == other.v2) or \
 			(self.v1 == other.v2 and self.v2 == other.v1)
 
+	def __gt__(self, other):
+		return self.v1 > other.v1
+
 	def __repr__(self):
 		return "Edge({}, {}, eq = {})".format(self.v1, self.v2, self.eq)
+
+	def __hash__(self):
+		return hash((self.v1, self.v2))
 
 class Polygon:
 	def __init__(self, vertices, clockwise=True):
@@ -95,7 +111,6 @@ class Polygon:
 		# print('vertices: ', vertices)
 		# TODO: adjust for non-clockwise
 		self.vertices = [Point(v[0], v[1]) for v in vertices]
-		print('vertices: ', self.vertices)
 		self.edges = []
 		# construct edges
 		prev_vertex = self.vertices[-1]
@@ -131,148 +146,41 @@ class Polygon:
 
 		return sorted(events, key=lambda event: event.x)
 
+def inLine(edge, intercept):
+	# if there are infinite solutions (colinear with the eventline)
+	if isinstance(intercept.x, Symbol) or isinstance(intercept.y, Symbol):
+		return True
+	# check if intercept is in the line
+	minPoint = min(edge.v1, edge.v2)
+	maxPoint = max(edge.v1, edge.v2)
+
+	return intercept >= minPoint and intercept <= maxPoint
+
 def intersects(eventLine, edges):
 	# params:
 	# 	eventLine: equation that represent event line
 
-	def solve_for_intercept(eq1, eq2):
+	def solve_for_intercept(eq1, eq2, intercepts):
 		A, b = linearEqsToAMF([eq1, eq2])
 		x, y = symbols('x y')
 		
 		print('A: ', A)
 		print('b: ', b)
 		intercept = linsolve((A, b), [x, y])
-		return intercept.args[0]
+		print('INTERcept_arg: ', intercept.args)
+		
+		return set() if not intercept.args else intercept.args[0]
 
 	intercepts = []
 	for e in edges:
-		intercept = solve_for_intercept(eventLine, e.eq)
-		if intercept:
-			intercepts.append(Point(*intercept))
+		_intercept = solve_for_intercept(eventLine, e.eq, intercepts)
+		if _intercept:
+			intercept_pt = Point(*_intercept)
+			if inLine(e, intercept_pt):
+				intercepts.append([intercept_pt, e])
 
-	sorted(intercepts)
+	# sorted(intercepts)
 	return intercepts
-
-class SurveyArea(Polygon):
-	def __init__(self, vertices, obs_vertices, clockwise=True):
-		# params:
-		# 	vertices: 2D array of x, y coordinates to build SurveyArea
-		super(SurveyArea, self).__init__(vertices, clockwise=clockwise)
-		self.obstacles = []
-		for obs_vertex in obs_vertices:
-			self.obstacles.append(Obstacle(obs_vertex))
-
-	def generateEvents(self, pp=False):
-		# params:
-		#   pp: print option
-		events = super().generateEvents(sort=True)
-
-		# overwrite start and end event names
-		events[0].eventName = BEGINEVENT
-		events[-1].eventName = ENDEVENT
-
-		if pp:
-			for e in events:
-				print(e)
-
-		ob_events = []
-		for idx, ob in enumerate(self.obstacles):
-			_ob_events = ob.generateEvents()
-			ob_events.append(_ob_events)
-
-		for idx, ob in enumerate(ob_events):
-			ob[0].eventName = INEVENT
-			ob[-1].eventName = OUTEVENT
-			if pp:
-				print('obs %d events: ' % idx)
-				for event in ob:
-					print(event)
-
-		return events
-
-	def generateBCells(self):
-		bcells = []
-		events = self.generateEvents()
-		for e in events:
-			# TODO: process events with same x coordinate simultaneously
-
-			# for each event, find the affected B cells
-			if e.eventName == BEGINEVENT:
-				bcells.append(BoustrophedonCell(e.x, e.prevEdge, e.nextEdge))
-			elif e.eventName in MIDEVENTS or e.eventName == ENDEVENT:
-				for cell in bcells:
-					cell.update(e, self.obstacles)
-		return bcells
-
-class Obstacle(Polygon):
-	def __init__(self, vertices, clockwise=True):
-		super(Obstacle, self).__init__(vertices, clockwise=clockwise)
-
-	def generateEvents(self):
-		events = super().generateEvents(sort=True)
-		# overwrite start and end event names
-		for idx, e in enumerate(events):
-			if idx == 0:
-				eventName = INEVENT
-			elif idx == len(events)-1:
-				eventName = OUTEVENT
-		return events
-
-class BoustrophedonCell:
-	def __init__(self, startX, startCeiling, startFloor):
-		self.startX = startX
-		self.terminated = False
-		self.ceilingEdges = [startCeiling]
-		self.floorEdges = [startFloor]
-
-	def terminate(self, endX):
-		self.endX = endX
-
-	def intersects(self, eventLine):
-		# params:
-		# 	eventLine: equation that represent event line
-		if self.terminated:
-			return []
-
-		_intersects = intersects(eventLine, [self.ceilingEdges[-1], self.floorEdges[-1]])
-		print('Update BCell')
-		print('ceiling edge: ', self.ceilingEdges[-1])
-		print('floor edge: ', self.floorEdges[-1])
-		flrIntersect, ceilIntersect = _intersects
-		print('ceiling intercept: ', ceilIntersect)
-		print('floor intercept: ', flrIntersect)
-		return _intersects
-
-	def update(self, event, obstacles):
-		# params:
-		# 	event: event to update the B. cell with
-		# 	obstacles: potential obstacles that may block cell
-		#		from updating
-		# return true if updated
-		if self.terminated:
-			return False
-
-		print(event.eventName)
-
-		# last ceiling edge
-		lce = self.ceilingEdges[-1]
-		# last floor edge
-		lfe = self.floorEdges[-1]
-		# update ceiling edge if ceilIntercept is same as event x-coordinate
-		
-		print('event: ', event)
-		if event.nextEdge == lce:
-			if lce.edgeType == event.prevEdge.edgeType:
-				self.ceilingEdges.append(event.prevEdge)
-
-		if event.prevEdge == lfe:
-			# print('event->nextEdge.edgeType: ', event.nextEdge.edgeType)
-			if lfe.edgeType == event.nextEdge.edgeType:
-				self.floorEdges.append(event.nextEdge)
-
-		print('ceilEdge: ', self.ceilingEdges)
-		print('floorEdges: ', self.floorEdges)
-		return True
 
 	
 
