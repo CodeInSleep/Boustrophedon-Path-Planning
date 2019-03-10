@@ -16,7 +16,6 @@ class Opening:
 	def __repr__(self):
 		return 'opening from {} to {}'.format(self.intercept1[0], self.intercept2[0])
 
-
 def nearestNeighbors(V, target, num=1):
     res = []
     min_distance = None
@@ -70,6 +69,7 @@ class SurveyArea(Polygon):
 		super(SurveyArea, self).__init__(vertices, clockwise=clockwise)
 		self.obstacles = []
 		for obs_vertex in obs_vertices:
+			# print('init obstacle: ', obs_vertex)
 			self.obstacles.append(Obstacle(obs_vertex))
 
 	def generateEvents(self, pp=False):
@@ -100,7 +100,7 @@ class SurveyArea(Polygon):
 				for event in ob:
 					print(event)
 
-		flatten_ob_events = [ob_event for ob_event in ob for ob in ob_events]
+		flatten_ob_events = [e for ob_event in ob_events for e in ob_event]
 		return events + flatten_ob_events
 
 	def generateBCells(self):
@@ -125,6 +125,10 @@ class SurveyArea(Polygon):
 			elif en in INOUTEVENTS:
 				openings = getOpenings(events, self)
 				# terminate cells interfaced
+				closing_rng = []
+				# append the events, since they are non-overlapping
+				for e in events:
+					closing_rng.append([e.y1, e.y2])
 
 				# print('IN/OUT EVENT: ', e)
 				# open new cells
