@@ -3,7 +3,10 @@ class Event:
 		# rng of the event
 		self.eventObj = eventObj
 		self.eventName = eventName
+
+		# nextEdge point to the edge next to the event in counterclkwise direction
 		self.nextEdge = nextEdge
+		# prevEdge points to the edge previous to the event in counterclkwise direction
 		self.prevEdge = prevEdge
 
 	@classmethod
@@ -31,3 +34,8 @@ class Event:
 	def __repr__(self):
 		return 'Event({}, name={})'.format(str(self.eventObj),
 			self.eventName, self.nextEdge, self.prevEdge)
+
+	def __ge__(self, other):
+		if self.x == other.x:
+			return self.y1 >= other.y1
+		return self.x > other.x

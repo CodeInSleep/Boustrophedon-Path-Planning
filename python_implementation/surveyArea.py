@@ -1,11 +1,18 @@
 from polygon import *
 from utils import *
+from interval import interval
+import pdb
 
-# TODO: make intercept a namedtuple
+# intercepts consist of (intercept Point, event object)
 class Opening:
 	def __init__(self, intercept1, intercept2):
 		self.intercept1 = intercept1
 		self.intercept2 = intercept2
+
+		if self.intercept1[0] > self.intercept2[0]:
+			temp = self.intercept1
+			self.intercept1 = self.intercept2
+			self.intercept2 = self.intercept1
 
 	def __eq__(self, other):
 		return self.intercept1[0] == other.intercept1[0] and self.intercept2[0] == other.intercept2[0]
@@ -35,6 +42,14 @@ def nearestNeighbors(V, target, num=1):
 
     return res[0]
 
+def addOpening(openings, newOpening):
+	# check if newOpening has already been covered if not add
+	# newOpening to set openings
+	for opening in openings:
+		if opening == newOpening:
+			return
+	openings.add(newOpening)
+
 def getOpenings(events, sa):
 	# params:
 	# 	events: list of events at same x-coordinate
@@ -45,21 +60,20 @@ def getOpenings(events, sa):
 		_intersects += intersects("x = {}".format(e.x),
 			sa.edges+[edge for obs in sa.obstacles for edge in obs.edges])
 
-		# print('event: ', e)
 		# print('intersects: ')
 		for idx, inter in enumerate(_intersects):
 			# replace symbol with average of intersected edge
 			if isinstance(inter[0].y, Symbol):
 				inter[0] = (inter[1].v1 + inter[1].v2)*(1/2)
-			print(inter)
 			
 		closestAbove = nearestNeighbors(list(filter(lambda pt: float(pt[0].y) > e.y2, _intersects)), Point(e.x, e.y1))
 		closestBelow = nearestNeighbors(list(filter(lambda pt: float(pt[0].y) < e.y1, _intersects)), Point(e.x, e.y2))
 
 		# add the opening above the event
-		openings.add(Opening(closestBelow, (Point(e.x, e.y1), e.eventObj)))
+		addOpening(openings, Opening(closestBelow, (Point(e.x, e.y1), e.nextEdge)))
 		# add the opening below the event
-		openings.add(Opening((Point(e.x, e.y2), e.eventObj), closestAbove))
+		addOpening(openings, Opening((Point(e.x, e.y2), e.prevEdge), closestAbove))
+
 	return list(openings)
 
 class SurveyArea(Polygon):
@@ -81,9 +95,9 @@ class SurveyArea(Polygon):
 		events[0].eventName = BEGINEVENT
 		events[-1].eventName = ENDEVENT
 
-		if pp:
-			for e in events:
-				print(e)
+		# if pp:
+		# 	for e in events:
+		# 		print(e)
 
 		ob_events = []
 		for idx, ob in enumerate(self.obstacles):
@@ -106,6 +120,7 @@ class SurveyArea(Polygon):
 	def generateBCells(self):
 		bcells = []
 		events = self.generateEvents(pp=True)
+		# aggregate events with same x coordinates
 		eventDict = {}
 		for e in events:
 			if e.x not in eventDict:
@@ -113,24 +128,53 @@ class SurveyArea(Polygon):
 			else:
 				eventDict[e.x].append(e)
 
-		for ex in eventDict:
+		for ex in sorted(eventDict.keys()):
+			pdb.set_trace()
+			print('PROCESSING EVENTS at: ', ex)
 			# TODO: process events with same x coordinate simultaneously
 			events = eventDict[ex]
 			firstEvent = events[0]
 			en = firstEvent.eventName
-			# for each event, find the affected B cells
+			
 			if en == BEGINEVENT:
+				# instantiate a begin cell
 				assert len(events) == 1
-				bcells.append(BoustrophedonCell(firstEvent.x, firstEvent.prevEdge, firstEvent.nextEdge))
+				bcells.append(BoustrophedonCell(firstEvent.x, firstEvent.nextEdge, firstEvent.prevEdge))
 			elif en in INOUTEVENTS:
+				# for in events split the previous cell into multiple small cells
+				# for out events combine the previous small cells into one larger cell
 				openings = getOpenings(events, self)
-				# terminate cells interfaced
-				closing_rng = []
-				# append the events, since they are non-overlapping
-				for e in events:
-					closing_rng.append([e.y1, e.y2])
+				
+				opening_top_pts = list(map(lambda x: x.intercept2[0], openings))
+				opening_bot_pts = list(map(lambda x: x.intercept1[0], openings))
 
-				# print('IN/OUT EVENT: ', e)
+				top_opening = None
+				bot_opening = None
+				# store the openings that have the maximum and minimum points
+				for opening in openings:
+					if opening.intercept2[0] == max(opening_top_pts):
+						top_opening = opening
+					if opening.intercept1[0] == min(opening_bot_pts):
+						bot_opening = opening
+
+				assert top_opening is not None
+				assert bot_opening is not None
+
+				print('---CLOSING CELLS---')
+				# close any cells covered
+				for cell in bcells:
+					int1, int2 = cell.intersects("x = {}".format(ex))
+					if min(opening_bot_pts).y < int1[0].y and max(opening_top_pts).y > int2[0].y:
+						cell.terminate(e)
+
+				print('---OPENING CELLS---')
+				if en == INEVENT:
+					# open new cells with openings
+					for op in openings:
+						bcells.append(BoustrophedonCell(op.intercept1[0].x, op.intercept2[1], op.intercept1[1]))
+				else:
+					bcells.append(BoustrophedonCell(e.x, top_opening.intercept2[1], bot_opening.intercept1[1]))
+			
 				# open new cells
 			elif en in MIDEVENTS:
 				for cell in bcells:
@@ -166,7 +210,7 @@ class BoustrophedonCell:
 
 	def terminate(self, event):
 		self.endX = event.x
-		self.termianted = True
+		self.terminated = True
 
 	def intersects(self, eventLine):
 		# params:
@@ -174,14 +218,13 @@ class BoustrophedonCell:
 		if self.terminated:
 			return []
 
+		pdb.set_trace()
 		_intersects = intersects(eventLine, [self.ceilingEdges[-1], self.floorEdges[-1]])
-		# print('Update BCell')
-		# print('ceiling edge: ', self.ceilingEdges[-1])
-		# print('floor edge: ', self.floorEdges[-1])
-		# flrIntersect, ceilIntersect = _intersects
-		# print('ceiling intercept: ', ceilIntersect)
-		# print('floor intercept: ', flrIntersect)
+		
 		return _intersects
+
+	def __str__(self):
+		return 'ceiling edges: {}, flooeEdges: {}'.format(self.ceilingEdges, self.floorEdges)
 
 	def update(self, events, obstacles):
 		# params:
@@ -199,15 +242,11 @@ class BoustrophedonCell:
 			lfe = self.floorEdges[-1]
 			# update ceiling edge if ceilIntercept is same as event x-coordinate
 			
-			if e.nextEdge == lce:
-				if lce.edgeType == e.prevEdge.edgeType:
-					self.ceilingEdges.append(e.prevEdge)
-
-			if e.prevEdge == lfe:
-				# print('event->nextEdge.edgeType: ', event.nextEdge.edgeType)
+			if e.nextEdge == lfe:
 				if lfe.edgeType == e.nextEdge.edgeType:
-					self.floorEdges.append(e.nextEdge)
+					self.floorEdges.append(e.prevEdge)
 
-		# print('ceilEdge: ', self.ceilingEdges)
-		# print('floorEdges: ', self.floorEdges)
+			if e.prevEdge == lce:
+				if lce.edgeType == e.prevEdge.edgeType:
+					self.ceilingEdges.append(e.nextEdge)
 		return True

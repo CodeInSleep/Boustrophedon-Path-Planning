@@ -10,12 +10,22 @@ from matplotlib.collections import PatchCollection
 def plot(vertices):
 	plt.plot(list(map(lambda x: x[0], vertices+vertices[:1])), list(map(lambda x: x[1], vertices+vertices[:1])))
 sa_vertices = [(4, 6), (6, 4), (5, 0), (3, 0), (2, 4)]
-obstacles = [[(3.2, 1), (3.2, 2), (4.2, 2), (4.2, 1)]]
+obstacles = [[(3.2, 2), (4.2, 2), (4.2, 1), (3.2, 1)], [(3.2, 4), (4.2, 4), (4.2, 3), (3.2, 3)]]
 plot(sa_vertices)
-plot(obstacles[0])
+for ob in obstacles:
+	plot(ob)
+
 plt.show()
+
 sa = SurveyArea(sa_vertices, obstacles)
-sa.generateBCells()
+# events = sa.generateEvents()
+bcells = sa.generateBCells()
+# for e in events:
+# 	print(e)
+# 	print('prev edge: ', e.prevEdge)
+# 	print('next edge: ', e.nextEdge)
+# print('openings: ')
+print(getOpenings([events[5], events[7]], sa))
 
 
 # print(intersects('x = 1', [Edge(Point(1, 1), Point(1, 2), 'C')]))

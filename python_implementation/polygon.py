@@ -13,7 +13,6 @@ def linearEqsToAMF(eqs):
 	A = []
 	b = []
 	for eq in eqs:
-		print('eq: ', eq)
 		lhs, rhs = eq.split('=')
 		
 		coeffs = re.findall(coeffPattern, lhs)
@@ -122,29 +121,34 @@ class Polygon:
 				edgeType = 'F'
 			prev_vertex = v
 
-		for e in self.edges:
-			print('edge: ', e)
-			print('type: ', e.edgeType)
-
 	def generateEvents(self, sort=True):
 		events = []
 		rightMostVertex = max(self.vertices)
 
 		seenMaxVertex = False
+		verticesUsed = set()
 		for idx, e in enumerate(self.edges):
 			eventName = CEILINGEVENT if not seenMaxVertex else FLOOREVENT
 			nextEdge = self.edges[idx+1] if idx+1 < len(self.edges) else self.edges[0]
+			prevEdge = self.edges[idx-1] if idx-1 >= 0 else self.edges[-1]
+
 			if e.vertical:
-				prevEdge = self.edges[idx-1] if idx-1 >= 0 else self.edges[-1]
-				events.append(Event.edgeEvent(e, eventName, prevEdge, nextEdge))
+				events.append(Event.edgeEvent(e, eventName, nextEdge, prevEdge))
+				verticesUsed.add(e.v1)
+				verticesUsed.add(e.v2)
 			else:
-				prevEdge = e
-				events.append(Event.pointEvent(e.v2, eventName, prevEdge, nextEdge))
+				if e.v1 not in verticesUsed:
+					events.append(Event.pointEvent(e.v1, eventName, e, prevEdge))
+					verticesUsed.add(e.v1)
 
 			if e.v2 == rightMostVertex:
 				seenMaxVertex = True
 
 		return sorted(events, key=lambda event: event.x)
+
+	def __repr__(self):
+		# print('obstacle edges: ')
+		return ', '.join(map(str, self.edges))
 
 def inLine(edge, intercept):
 	# if there are infinite solutions (colinear with the eventline)
@@ -164,10 +168,7 @@ def intersects(eventLine, edges):
 		A, b = linearEqsToAMF([eq1, eq2])
 		x, y = symbols('x y')
 		
-		print('A: ', A)
-		print('b: ', b)
 		intercept = linsolve((A, b), [x, y])
-		print('INTERcept_arg: ', intercept.args)
 		
 		return set() if not intercept.args else intercept.args[0]
 
