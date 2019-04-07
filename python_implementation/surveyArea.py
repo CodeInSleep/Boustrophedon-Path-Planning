@@ -129,7 +129,8 @@ class SurveyArea(Polygon):
 				eventDict[e.x].append(e)
 
 		for ex in sorted(eventDict.keys()):
-			pdb.set_trace()
+			# if len(bcells) == 4:
+			# 	pdb.set_trace()
 			print('PROCESSING EVENTS at: ', ex)
 			# TODO: process events with same x coordinate simultaneously
 			events = eventDict[ex]
@@ -163,9 +164,11 @@ class SurveyArea(Polygon):
 				print('---CLOSING CELLS---')
 				# close any cells covered
 				for cell in bcells:
-					int1, int2 = cell.intersects("x = {}".format(ex))
-					if min(opening_bot_pts).y < int1[0].y and max(opening_top_pts).y > int2[0].y:
-						cell.terminate(e)
+					intersects = cell.intersects("x = {}".format(ex))
+					if intersects:
+						int1, int2 = intersects
+						if min(opening_bot_pts).y < int1[0].y and max(opening_top_pts).y > int2[0].y:
+							cell.terminate(e)
 
 				print('---OPENING CELLS---')
 				if en == INEVENT:
@@ -218,13 +221,13 @@ class BoustrophedonCell:
 		if self.terminated:
 			return []
 
-		pdb.set_trace()
+		# pdb.set_trace()
 		_intersects = intersects(eventLine, [self.ceilingEdges[-1], self.floorEdges[-1]])
 		
 		return _intersects
 
 	def __str__(self):
-		return 'ceiling edges: {}, flooeEdges: {}'.format(self.ceilingEdges, self.floorEdges)
+		return 'ceiling edges: {}\nfloorEdges: {}\nterminated: {}\n'.format(self.ceilingEdges, self.floorEdges, self.terminated)
 
 	def update(self, events, obstacles):
 		# params:
@@ -241,7 +244,6 @@ class BoustrophedonCell:
 			# last floor edge
 			lfe = self.floorEdges[-1]
 			# update ceiling edge if ceilIntercept is same as event x-coordinate
-			
 			if e.nextEdge == lfe:
 				if lfe.edgeType == e.nextEdge.edgeType:
 					self.floorEdges.append(e.prevEdge)
